@@ -1,12 +1,23 @@
 <?php
 
 require_once "Db.php";
+require_once "./models/AbstractModel.php";
+require_once "./models/CityModel.php";
+require_once "./models/TravelerModel.php";
 
-use application\Db;
+use Application\Db;
+use Application\Model\CityModel;
+use Application\Model\TravelerModel;
 
 $db = new Db();
 
 $db->init();
+
+//$result = $db->addTraveler(new TravelerModel("Donald Trump"));
+$result = $db->getTraveler(3);
+print_r(json_encode($result));
+$result = $db->getTravelers();
+print_r(json_encode($result));
 
 //$result = $db->getPlaces();
 //print_r($result);

@@ -1,8 +1,10 @@
 <?php
 
-namespace application;
+namespace Application;
 
 use SQLite3;
+use Application\Model\CityModel;
+use Application\Model\TravelerModel;
 
 class Db
 {
@@ -24,31 +26,35 @@ class Db
 
     public function getCity(int $cityId)
     {
-        print_r('Получение города #' . $cityId . PHP_EOL);
         $query = "SELECT * FROM cities WHERE cityId = :cityId";
-        return $this->runQueryWithParam($query, [':cityId' => $cityId], true);
+        $result = $this->runQueryWithParam($query, [':cityId' => $cityId], true);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        return new CityModel($result['cityName'], $result['cityId']);
     }
 
     public function getTraveler(int $travelerId)
     {
-        print_r('Получение путешественника #' . $travelerId . PHP_EOL);
         $query = "SELECT * FROM travelers WHERE travelerId = :travelerId";
-        return $this->runQueryWithParam($query, [':travelerId' => $travelerId], true);
+        $result = $this->runQueryWithParam($query, [':travelerId' => $travelerId], true);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        return new TravelerModel($result['name'], $result['travelerId']);
     }
 
-    public function addCity(string $cityName)
+    public function addCity(CityModel $city)
     {
-        print_r('Добавление города: ' . $cityName . PHP_EOL);
         $query = "INSERT INTO cities(cityName) VALUES (:cityName)";
-        $result = $this->runQueryWithParam($query, [':cityName' => $cityName]);
+        $result = $this->runQueryWithParam($query, [':cityName' => $city->getCityName()]);
         return $result;
     }
 
-    public function addTraveler(string $travelerName)
+    public function addTraveler(TravelerModel $traveler)
     {
-        print_r('Добавление путешественника: ' . $travelerName . PHP_EOL);
         $query = "INSERT INTO travelers(name) VALUES (:travelerName)";
-        $result = $this->runQueryWithParam($query, [':travelerName' => $travelerName]);
+        $result = $this->runQueryWithParam($query, [':travelerName' => $traveler->getName()]);
         return $result;
     }
 
@@ -94,13 +100,29 @@ class Db
     public function getCities()
     {
         $query = "SELECT * FROM cities ORDER BY cityName";
-        return $this->runQuery($query);
+        $result = $this->runQuery($query);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        $data = [];
+        foreach ($result as $city) {
+            $data[] = new CityModel($city['cityName'], $city['cityId']);
+        }
+        return $data;
     }
 
     public function getTravelers()
     {
         $query = "SELECT * FROM travelers ORDER BY name";
-        return $this->runQuery($query);
+        $result = $this->runQuery($query);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        $data = [];
+        foreach ($result as $traveler) {
+            $data[] = new TravelerModel($traveler['name'], $traveler['travelerId']);
+        }
+        return $data;
     }
 
     public function getVisitedCities(int $travelerId)
