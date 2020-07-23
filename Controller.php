@@ -12,8 +12,7 @@ class Controller
 
     private SQLite3 $db;
 
-    public function init()
-    {
+    public function __construct() {
         $this->db = new SQLite3('db/travel.db');
     }
 
