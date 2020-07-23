@@ -8,7 +8,6 @@ class Application
 {
     public $entities = ['place', 'traveler', 'city'];
 
-    public $requestUri = [];
     public $requestParams = [];
 
     protected $entity = '';
@@ -30,6 +29,8 @@ class Application
         }
         if (!empty($this->requestParams['action'])) {
             $this->method = $this->requestParams['action'];
+        } else if (!empty($this->requestParams['id'])) {
+            $this->method = 'view';
         }
 
         $this->controller = new Controller();
@@ -83,7 +84,7 @@ class Application
                     default:
                         return null;
                 }
-            case 'GET':
+            case 'view':
                 switch ($entity) {
                     case 'place':
                         return 'actionGetPlace';
@@ -128,14 +129,14 @@ class Application
     }
 
     private function actionGetPlace() {
-        return $this->response($this->controller->getPlace($this->requestParams['placeId']), 200);
+        return $this->response($this->controller->getPlace($this->requestParams['id']), 200);
     }
 
     private function actionGetCity() {
-        return $this->response($this->controller->getCity($this->requestParams['cityId']), 200);
+        return $this->response($this->controller->getCity($this->requestParams['id']), 200);
     }
 
     private function actionGetTraveler() {
-        return $this->response($this->controller->getTraveler($this->requestParams['travelerId']), 200);
+        return $this->response($this->controller->getTraveler($this->requestParams['id']), 200);
     }
 }

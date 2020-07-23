@@ -56,7 +56,9 @@ class Controller
         }
         $cities = $this->getVisitedCities($travelerId);
         if ($cities === false) $cities = [];
-        return new TravelerModel($result['name'], $result['travelerId'], $cities);
+        $places = $this->getVisitedPlaces($travelerId);
+        if ($places === false) $places = [];
+        return new TravelerModel($result['name'], $result['travelerId'], $cities, $places);
     }
 
     public function addCity(CityModel $city)
