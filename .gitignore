@@ -1,3 +1,5 @@
 .vscode/
 .test/
 *.db
+/vendor/
+composer.phar

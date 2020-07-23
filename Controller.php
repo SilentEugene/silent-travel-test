@@ -4,9 +4,10 @@ namespace Application;
 
 use SQLite3;
 use Application\Model\CityModel;
+use Application\Model\PlaceModel;
 use Application\Model\TravelerModel;
 
-class Db
+class Controller
 {
 
     private SQLite3 $db;
@@ -14,14 +15,27 @@ class Db
     public function init()
     {
         $this->db = new SQLite3('db/travel.db');
-        print_r('OK' . PHP_EOL);
     }
 
     public function getPlace(int $placeId)
     {
-        print_r('Получение места #' . $placeId . PHP_EOL);
-        $query = "SELECT * FROM places WHERE placeId = :placeId";
-        return $this->runQueryWithParam($query, [':placeId' => $placeId], true);
+        $query = "SELECT places.*, cities.cityName
+        FROM places, cities WHERE placeId = :placeId AND cities.cityId = places.cityId
+        GROUP BY places.placeName";
+        $result = $this->runQueryWithParam($query, [':placeId' => $placeId], true);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        $rates = $this->getRates([$placeId]);
+        $rate = isset($rates[$placeId]) ? $rates[$placeId]['placeRate'] : 0;
+        return new PlaceModel(
+            $result['placeName'],
+            $result['cityId'],
+            $result['distance'],
+            $result['placeId'],
+            $result['cityName'],
+            $rate
+        );
     }
 
     public function getCity(int $cityId)
@@ -41,7 +55,9 @@ class Db
         if ($result === false || isset($result['error']) || isset($result['code'])) {
             return false;
         }
-        return new TravelerModel($result['name'], $result['travelerId']);
+        $cities = $this->getVisitedCities($travelerId);
+        if ($cities === false) $cities = [];
+        return new TravelerModel($result['name'], $result['travelerId'], $cities);
     }
 
     public function addCity(CityModel $city)
@@ -58,43 +74,47 @@ class Db
         return $result;
     }
 
-    public function addPlace(string $placeName, int $cityId, float $distance)
+    public function addPlace(PlaceModel $place)
     {
-        print_r('Добавление места: ' . $placeName . PHP_EOL);
         $query = "INSERT INTO places(placeName, cityId, distance) VALUES (?, ?, ?)";
         $result = $this->runQueryWithParam($query, [
-            1 => $placeName,
-            2 => $cityId,
-            3 => $distance
+            1 => $place->getPlaceName(),
+            2 => $place->getCityId(),
+            3 => $place->getDistance()
         ]);
         return $result;
     }
 
     public function getPlaces(array $cities = [])
     {
-        if (!empty($cities) && is_array($cities)) {
-            print_r('Получить места для выбранных городов' . PHP_EOL);
+        if (!empty($cities)) {
             $ids = implode(",", $cities);
-            print_r($ids . PHP_EOL);
             $query = "SELECT * FROM places 
             INNER JOIN cities ON cities.cityId IN ($ids) AND places.cityId = cities.cityId
             ORDER BY cityName, placeName";
         } else {
-            print_r('Получить все места' . PHP_EOL);
             $query = "SELECT places.*, cities.cityName
             FROM places, cities WHERE cities.cityId = places.cityId
             GROUP BY places.placeName";
         }
         $places = $this->runQuery($query);
         $rates = $this->getRates();
-        print_r('Оценки:' . PHP_EOL);
-        print_r($rates);
         foreach ($places as &$place) {
             $place['placeRate'] = isset($rates[$place['placeId']]) ? $rates[$place['placeId']]['placeRate'] : 0;
         }
         unset($place);
-
-        return $places;
+        $data = [];
+        foreach ($places as $place) {
+            $data[] = new PlaceModel(
+                $place['placeName'],
+                $place['cityId'],
+                $place['distance'],
+                $place['placeId'],
+                $place['cityName'],
+                $place['placeRate']
+            );
+        }
+        return $data;
     }
 
     public function getCities()
@@ -120,18 +140,53 @@ class Db
         }
         $data = [];
         foreach ($result as $traveler) {
-            $data[] = new TravelerModel($traveler['name'], $traveler['travelerId']);
+            $cities = $this->getVisitedCities($traveler['travelerId']);
+            if ($cities === false) $cities = [];
+            $places = $this->getVisitedPlaces($traveler['travelerId']);
+            if ($places === false) $places = [];
+            $data[] = new TravelerModel($traveler['name'], $traveler['travelerId'], $cities, $places);
         }
         return $data;
     }
 
     public function getVisitedCities(int $travelerId)
     {
-        print_r('Получить города для путешенственника #' . $travelerId . PHP_EOL);
         $query = "SELECT * FROM cities
             INNER JOIN (SELECT * FROM visits WHERE travelerId = :travelerId) USING (cityId)
             ORDER BY cityName";
-        return $this->runQueryWithParam($query, [':travelerId' => $travelerId]);
+        $result = $this->runQueryWithParam($query, [':travelerId' => $travelerId]);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        $data = [];
+        foreach ($result as $city) {
+            $data[] = new CityModel($city['cityName'], $city['cityId']);
+        }
+        return $data;
+    }
+
+    public function getVisitedPlaces(int $travelerId)
+    {
+        $query = "SELECT places.*, cities.cityName, rates.rate
+            FROM places, cities, rates
+            WHERE rates.travelerId = :travelerId AND places.placeId = rates.placeId AND cities.cityId = places.cityId
+            ORDER BY cityName, placeName";
+        $result = $this->runQueryWithParam($query, [':travelerId' => $travelerId]);
+        if ($result === false || isset($result['error']) || isset($result['code'])) {
+            return false;
+        }
+        $places = [];
+        foreach ($result as $place) {
+            $places[] = new PlaceModel(
+                $place['placeName'],
+                $place['cityId'],
+                $place['distance'],
+                $place['placeId'],
+                $place['cityName'],
+                $place['rate']
+            );
+        }
+        return $places;
     }
 
     public function getTravelersInCity(int $cityId)
@@ -142,16 +197,21 @@ class Db
         return $this->runQueryWithParam($query, [':cityId' => $cityId]);
     }
 
-    private function getRates()
+    private function getRates(array $placeIds = [])
     {
-        $query = "SELECT placeId, CAST (AVG(rate) AS INTEGER) AS placeRate
-        FROM rates GROUP BY placeId";
+        if (empty($placeIds)) {
+            $query = "SELECT placeId, CAST (AVG(rate) AS INTEGER) AS placeRate
+            FROM rates GROUP BY placeId";
+        } else {
+            $ids = implode(",", $placeIds);
+            $query = "SELECT placeId, CAST (AVG(rate) AS INTEGER) AS placeRate
+            FROM rates WHERE placeId IN ($ids) GROUP BY placeId";
+        }
         return $this->runQuery($query, 'placeId');
     }
 
     public function ratePlace(int $travelerId, int $placeId, int $rate)
     {
-        print_r('Путешественник #' . $travelerId . ' поставил месту #' . $placeId . ' оценку ' . $rate . PHP_EOL);
         $query = "INSERT INTO rates(travelerId, placeId, rate) VALUES (?, ?, ?)";
         $result = $this->runQueryWithParam($query, [
             1 => $travelerId,
@@ -178,7 +238,6 @@ class Db
 
     public function checkInCity(int $travelerId, int $cityId)
     {
-        print_r('Путешественник #' . $travelerId . ' в городе #' . $cityId . PHP_EOL);
         $query = "INSERT INTO visits(travelerId, cityId) VALUES (?, ?)";
         return $this->runQueryWithParam($query, [1 => $travelerId, 2 => $cityId]);
     }

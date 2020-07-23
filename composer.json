@@ -1,0 +1,17 @@
+{
+    "name": "eugene/travel-test",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Eugene Pershin",
+            "email": "eugene.pershin@mail.ru"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "Application\\" : "./",
+            "Application\\Model\\": "./models"
+        }
+    }
+}
