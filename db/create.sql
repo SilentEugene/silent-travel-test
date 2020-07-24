@@ -1,3 +1,6 @@
+PRAGMA foreign_keys = off;
+BEGIN TRANSACTION;
+
 CREATE TABLE cities (
     cityId   INTEGER PRIMARY KEY,
     cityName TEXT    NOT NULL
@@ -50,3 +53,6 @@ CREATE TABLE visits (
     )
     REFERENCES cities (cityId) 
 );
+
+COMMIT TRANSACTION;
+PRAGMA foreign_keys = on;
